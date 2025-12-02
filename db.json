@@ -1,0 +1,149 @@
+{
+  "reservistes": [
+    {
+      "cin": "A123456",
+      "nom": "El Mansouri",
+      "prenom": "Youssef",
+      "dateNaissance": "1990-02-12",
+      "adresseReference": "12 Rue Atlas, Rabat",
+      "statutMobilisation": "Active"
+    },
+    {
+      "cin": "B654321",
+      "nom": "Bennani",
+      "prenom": "Salma",
+      "dateNaissance": "1988-07-08",
+      "adresseReference": "45 Avenue Hassan II, Casablanca",
+      "statutMobilisation": "Expiree"
+    }
+  ],
+  "campagnes": [
+    {
+      "id": 1,
+      "nom": "Campagne 2025 - Lot Nord",
+      "dateDebut": "2025-01-01",
+      "dateFin": "2025-03-31",
+      "statut": "EnCours"
+    },
+    {
+      "id": 2,
+      "nom": "Campagne 2024 - Sud",
+      "dateDebut": "2024-04-01",
+      "dateFin": "2024-06-30",
+      "statut": "Terminee"
+    }
+  ],
+  "brigades": [
+    { "id": 1, "nom": "Brigade Nord", "zone": "Rabat - Salé - Kénitra" },
+    { "id": 2, "nom": "Brigade Sud", "zone": "Casablanca - Settat" },
+    { "id": 3, "nom": "Brigade Est", "zone": "Fès - Meknès" }
+  ],
+  "dossiers": [
+    {
+      "id": 1,
+      "dateReception": "2025-01-10",
+      "statutLocalisation": "EnCours",
+      "typeLocalisation": "Reference",
+      "adresseInvestiguer": "12 Rue Atlas, Rabat",
+      "dateMiseAJour": "2025-01-11",
+      "reserviste": {
+        "cin": "A123456",
+        "nom": "El Mansouri",
+        "prenom": "Youssef",
+        "dateNaissance": "1990-02-12",
+        "statutMobilisation": "Active"
+      },
+      "campagne": { "id": 1, "nom": "Campagne 2025 - Lot Nord", "statut": "EnCours" },
+      "brigade": { "id": 1, "nom": "Brigade Nord", "zone": "Rabat - Salé - Kénitra" },
+      "pvs": [
+        {
+          "id": 1,
+          "numero": "PV-2025-001",
+          "type": "Autre",
+          "motif": "Ouverture dossier",
+          "date": "2025-01-10",
+          "fichierUrl": "/files/pv-2025-001.pdf"
+        }
+      ],
+      "bordereaux": [],
+      "historique": [
+        {
+          "id": 1,
+          "date": "2025-01-10T10:30:00Z",
+          "utilisateur": "gr.admin",
+          "action": "Création du dossier",
+          "commentaire": "Import initial"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "dateReception": "2025-01-12",
+      "statutLocalisation": "Transfere",
+      "typeLocalisation": "NouvelleAdresse",
+      "adresseInvestiguer": "Quartier Anfa, Casablanca",
+      "dateMiseAJour": "2025-01-15",
+      "reserviste": {
+        "cin": "B654321",
+        "nom": "Bennani",
+        "prenom": "Salma",
+        "dateNaissance": "1988-07-08",
+        "statutMobilisation": "Expiree"
+      },
+      "campagne": { "id": 1, "nom": "Campagne 2025 - Lot Nord", "statut": "EnCours" },
+      "brigade": { "id": 2, "nom": "Brigade Sud", "zone": "Casablanca - Settat" },
+      "pvs": [
+        {
+          "id": 2,
+          "numero": "PV-2025-045",
+          "type": "Transfert",
+          "motif": "Adresse hors zone",
+          "date": "2025-01-14",
+          "fichierUrl": "/files/pv-2025-045.pdf"
+        }
+      ],
+      "bordereaux": [
+        {
+          "id": 1,
+          "numero": "BOR-2025-01",
+          "type": "Transfert",
+          "date": "2025-01-14"
+        }
+      ],
+      "historique": [
+        {
+          "id": 2,
+          "date": "2025-01-12T09:00:00Z",
+          "utilisateur": "gr.admin",
+          "action": "Création du dossier",
+          "commentaire": "Import initial"
+        },
+        {
+          "id": 3,
+          "date": "2025-01-14T15:00:00Z",
+          "utilisateur": "brigade.nord",
+          "action": "Transfert vers Brigade Sud",
+          "commentaire": "Adresse hors zone"
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "id": 1,
+      "nom": "Admin GR",
+      "email": "gr.admin@example.com",
+      "role": "GR",
+      "motDePasse": "password",
+      "derniereConnexion": "2025-01-10T08:00:00Z"
+    },
+    {
+      "id": 2,
+      "nom": "Chef Brigade Nord",
+      "email": "brigade.nord@example.com",
+      "role": "Brigade",
+      "motDePasse": "password",
+      "derniereConnexion": "2025-01-11T09:00:00Z"
+    }
+  ]
+}
