@@ -1,19 +1,19 @@
-import jsonServer from 'json-server/lib/server/index.js';
+import { createApp } from 'json-server/lib/app.js';
+import { JSONFilePreset } from 'lowdb/node';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const server = jsonServer.create();
-const router = jsonServer.router('db.json');
-const middlewares = jsonServer.defaults();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const dbFile = join(__dirname, 'db.json');
 
-server.use(middlewares);
-server.use(jsonServer.bodyParser);
+const db = await JSONFilePreset(dbFile);
+const app = createApp(db);
 
 const nowIso = () => new Date().toISOString();
 
-const updateDossier = (id, changes, actionLabel, commentaire = '') => {
-  const db = router.db;
-  const dossier = db.get('dossiers').find({ id: Number(id) }).value();
+const updateDossier = async (id, changes, actionLabel, commentaire = '') => {
+  const dossier = db.data.dossiers.find((d) => String(d.id) === String(id));
   if (!dossier) return null;
-
   const historyEntry = actionLabel
     ? {
         id: Date.now(),
@@ -23,7 +23,6 @@ const updateDossier = (id, changes, actionLabel, commentaire = '') => {
         commentaire,
       }
     : null;
-
   const updated = {
     ...dossier,
     ...changes,
@@ -32,29 +31,29 @@ const updateDossier = (id, changes, actionLabel, commentaire = '') => {
       ? [historyEntry, ...(dossier.historique || [])]
       : dossier.historique,
   };
-
-  db.get('dossiers').find({ id: Number(id) }).assign(updated).write();
+  const index = db.data.dossiers.findIndex((d) => String(d.id) === String(id));
+  db.data.dossiers[index] = updated;
+  await db.write();
   return updated;
 };
 
-// Authentication mock: accept anything and return a role based on email
-server.post('/api/auth/login', (req, res) => {
-  const { email } = req.body;
+// Authentication mock
+app.post('/api/auth/login', (req, res) => {
+  const { email } = req.body || {};
   const user =
-    router.db.get('users').find({ email }).value() ||
-    router.db.get('users').first().value();
+    db.data.users.find((u) => u.email === email) || db.data.users.at(0) || {};
   res.json({
     token: 'fake-jwt-token',
-    role: user?.role || 'GR',
+    role: user.role || 'GR',
     user,
   });
 });
 
-// Dossiers list with basic filters
-server.get('/api/dossiers', (req, res) => {
+// Dossiers list with filters
+app.get('/api/dossiers', (req, res) => {
   const { cin, nom, brigadeId, campagneId, statutLocalisation, typeLocalisation } =
     req.query;
-  let dossiers = router.db.get('dossiers').value();
+  let dossiers = db.data.dossiers || [];
   if (cin) dossiers = dossiers.filter((d) => d.reserviste?.cin?.includes(cin));
   if (nom)
     dossiers = dossiers.filter(
@@ -79,18 +78,17 @@ server.get('/api/dossiers', (req, res) => {
 });
 
 // Single dossier
-server.get('/api/dossiers/:id', (req, res) => {
-  const dossier = router.db
-    .get('dossiers')
-    .find({ id: Number(req.params.id) })
-    .value();
+app.get('/api/dossiers/:id', (req, res) => {
+  const dossier = db.data.dossiers.find(
+    (d) => String(d.id) === String(req.params.id)
+  );
   if (!dossier) return res.status(404).json({ message: 'Dossier introuvable' });
   res.json(dossier);
 });
 
 // Actions
-server.post('/api/dossiers/:id/confirmer-adresse', (req, res) => {
-  const updated = updateDossier(
+app.post('/api/dossiers/:id/confirmer-adresse', async (req, res) => {
+  const updated = await updateDossier(
     req.params.id,
     { statutLocalisation: 'Localise', typeLocalisation: 'Reference' },
     'Adresse confirmée'
@@ -99,9 +97,9 @@ server.post('/api/dossiers/:id/confirmer-adresse', (req, res) => {
   res.json(updated);
 });
 
-server.post('/api/dossiers/:id/nouvelle-adresse', (req, res) => {
+app.post('/api/dossiers/:id/nouvelle-adresse', async (req, res) => {
   const { adresse, casParticulier } = req.body || {};
-  const updated = updateDossier(
+  const updated = await updateDossier(
     req.params.id,
     {
       adresseInvestiguer: adresse || 'Adresse mise à jour',
@@ -115,8 +113,8 @@ server.post('/api/dossiers/:id/nouvelle-adresse', (req, res) => {
   res.json(updated);
 });
 
-server.post('/api/dossiers/:id/adresse-inconnue', (req, res) => {
-  const updated = updateDossier(
+app.post('/api/dossiers/:id/adresse-inconnue', async (req, res) => {
+  const updated = await updateDossier(
     req.params.id,
     { statutLocalisation: 'NonLocalise', typeLocalisation: 'Inconnue' },
     'Adresse inconnue / PV non-localisation'
@@ -125,10 +123,10 @@ server.post('/api/dossiers/:id/adresse-inconnue', (req, res) => {
   res.json(updated);
 });
 
-server.post('/api/dossiers/:id/transfert', (req, res) => {
+app.post('/api/dossiers/:id/transfert', async (req, res) => {
   const { brigadeId, commentaire } = req.body || {};
-  const brigade = router.db.get('brigades').find({ id: Number(brigadeId) }).value();
-  const updated = updateDossier(
+  const brigade = db.data.brigades.find((b) => String(b.id) === String(brigadeId));
+  const updated = await updateDossier(
     req.params.id,
     {
       statutLocalisation: 'Transfere',
@@ -142,8 +140,8 @@ server.post('/api/dossiers/:id/transfert', (req, res) => {
   res.json(updated);
 });
 
-const markWithType = (type, actionLabel) => (req, res) => {
-  const updated = updateDossier(
+const markWithType = (type, actionLabel) => async (req, res) => {
+  const updated = await updateDossier(
     req.params.id,
     { statutLocalisation: 'Localise', typeLocalisation: type },
     actionLabel
@@ -152,83 +150,88 @@ const markWithType = (type, actionLabel) => (req, res) => {
   res.json(updated);
 };
 
-server.post('/api/dossiers/:id/marquer-decede', markWithType('Decede', 'PV Décédé'));
-server.post('/api/dossiers/:id/marquer-ecroue', markWithType('Ecroue', 'PV Écroué'));
-server.post('/api/dossiers/:id/marquer-etranger', markWithType('A_Etranger', 'PV Étranger'));
-server.post('/api/dossiers/:id/marquer-inapte', markWithType('Inapte', 'PV Inapte'));
-server.post('/api/dossiers/:id/cas-particulier', markWithType('NouvelleAdresse', 'Cas particulier'));
-server.post('/api/dossiers/:id/aucune-action', (req, res) => {
-  const updated = updateDossier(req.params.id, {}, 'Aucune action requise');
+app.post('/api/dossiers/:id/marquer-decede', markWithType('Decede', 'PV Décédé'));
+app.post('/api/dossiers/:id/marquer-ecroue', markWithType('Ecroue', 'PV Écroué'));
+app.post('/api/dossiers/:id/marquer-etranger', markWithType('A_Etranger', 'PV Étranger'));
+app.post('/api/dossiers/:id/marquer-inapte', markWithType('Inapte', 'PV Inapte'));
+app.post('/api/dossiers/:id/cas-particulier', markWithType('NouvelleAdresse', 'Cas particulier'));
+app.post('/api/dossiers/:id/aucune-action', async (req, res) => {
+  const updated = await updateDossier(req.params.id, {}, 'Aucune action requise');
   if (!updated) return res.status(404).end();
   res.json(updated);
 });
 
-// Campagnes, brigades, réservistes, users passthrough
-server.get('/api/campagnes', (req, res) => {
-  const campagnes = router.db.get('campagnes').value();
+// Campagnes, brigades, réservistes, users
+app.get('/api/campagnes', (req, res) => {
+  const campagnes = db.data.campagnes || [];
   res.json({ items: campagnes, total: campagnes.length });
 });
-server.get('/api/campagnes/:id', (req, res) => {
-  const campagne = router.db
-    .get('campagnes')
-    .find({ id: Number(req.params.id) })
-    .value();
+
+app.get('/api/campagnes/:id', (req, res) => {
+  const campagne = db.data.campagnes.find(
+    (c) => String(c.id) === String(req.params.id)
+  );
   if (!campagne) return res.status(404).json({ message: 'Campagne introuvable' });
   res.json(campagne);
 });
-server.post('/api/campagnes', (req, res) => {
-  const campagnes = router.db.get('campagnes');
-  const nextId = (campagnes.map('id').max().value() || 0) + 1;
+
+app.post('/api/campagnes', async (req, res) => {
+  const campagnes = db.data.campagnes || [];
+  const nextId =
+    campagnes.reduce((max, c) => (c.id > max ? c.id : max), 0) + 1;
   const newCampagne = { id: nextId, statut: 'Planifiee', ...req.body };
-  campagnes.push(newCampagne).write();
+  db.data.campagnes.push(newCampagne);
+  await db.write();
   res.status(201).json(newCampagne);
 });
 
-server.get('/api/brigades', (req, res) => {
-  res.json(router.db.get('brigades').value());
+app.get('/api/brigades', (req, res) => {
+  res.json(db.data.brigades || []);
 });
 
-server.get('/api/reservistes', (req, res) => {
-  res.json(router.db.get('reservistes').value());
+app.get('/api/reservistes', (req, res) => {
+  res.json(db.data.reservistes || []);
 });
 
-server.get('/api/reservistes/:cin', (req, res) => {
-  const reserviste = router.db
-    .get('reservistes')
-    .find({ cin: req.params.cin })
-    .value();
-  if (!reserviste) return res.status(404).json({ message: 'Réserviste introuvable' });
+app.get('/api/reservistes/:cin', (req, res) => {
+  const reserviste = db.data.reservistes.find((r) => r.cin === req.params.cin);
+  if (!reserviste)
+    return res.status(404).json({ message: 'Réserviste introuvable' });
   res.json(reserviste);
 });
 
-server.get('/api/users', (req, res) => {
-  res.json(router.db.get('users').value());
+app.get('/api/users', (req, res) => {
+  res.json(db.data.users || []);
 });
-server.post('/api/users', (req, res) => {
-  const users = router.db.get('users');
-  const nextId = (users.map('id').max().value() || 0) + 1;
+
+app.post('/api/users', async (req, res) => {
+  const users = db.data.users || [];
+  const nextId =
+    users.reduce((max, u) => (u.id > max ? u.id : max), 0) + 1;
   const newUser = { id: nextId, ...req.body };
-  users.push(newUser).write();
+  db.data.users.push(newUser);
+  await db.write();
   res.status(201).json(newUser);
 });
 
 // PV & Bordereaux file endpoints
-server.get('/api/pv/:id/fichier', (req, res) => {
+app.get('/api/pv/:id/fichier', (req, res) => {
   res.set('Content-Type', 'application/pdf');
   res.send(Buffer.from(`Fake PDF contenu pour PV ${req.params.id}`));
 });
-server.get('/api/bordereaux/:id/fichier', (req, res) => {
+
+app.get('/api/bordereaux/:id/fichier', (req, res) => {
   res.set('Content-Type', 'application/pdf');
   res.send(Buffer.from(`Fake PDF contenu pour Bordereau ${req.params.id}`));
 });
 
 // BR upload & résultats
-server.post('/api/br/upload-fichier', (req, res) => {
+app.post('/api/br/upload-fichier', (req, res) => {
   res.json({ message: 'Fichier BR reçu (mock)' });
 });
-server.get('/api/gr/resultats', (req, res) => {
-  const campagnes = router.db.get('campagnes').value();
-  const dossiers = router.db.get('dossiers').value();
+app.get('/api/gr/resultats', (req, res) => {
+  const campagnes = db.data.campagnes || [];
+  const dossiers = db.data.dossiers || [];
   const aggregats = campagnes.map((c) => {
     const ds = dossiers.filter((d) => d.campagne?.id === c.id);
     return {
@@ -243,10 +246,7 @@ server.get('/api/gr/resultats', (req, res) => {
   res.json(aggregats);
 });
 
-// Mount the default router under /api for fallback CRUD
-server.use('/api', router);
-
 const port = process.env.MOCK_PORT || 4000;
-server.listen(port, () => {
+app.listen(port, () => {
   console.log(`Mock API en écoute sur http://localhost:${port}`);
 });
