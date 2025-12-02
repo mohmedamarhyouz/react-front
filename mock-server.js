@@ -6,7 +6,16 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dbFile = join(__dirname, 'db.json');
 
-const db = await JSONFilePreset(dbFile);
+// lowdb requires default data even if the file already exists
+const defaultData = {
+  reservistes: [],
+  campagnes: [],
+  brigades: [],
+  dossiers: [],
+  users: [],
+};
+
+const db = await JSONFilePreset(dbFile, defaultData);
 const app = createApp(db);
 
 const nowIso = () => new Date().toISOString();
